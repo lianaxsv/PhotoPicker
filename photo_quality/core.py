@@ -39,7 +39,7 @@ def analyze_image(image: np.ndarray, thresholds: dict | None = None) -> dict:
         flags.append('possibly_blurry')
     if brightness < p['dark']:
         flags.append('underexposed')
-    if brightness > p['bright']:
+    if brightness > p['bright'] or bright_fraction > p['clipping_fraction']:
         flags.append('overexposed')
     if contrast < p['low_contrast']:
         flags.append('low_contrast')
