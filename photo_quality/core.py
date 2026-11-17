@@ -51,17 +51,27 @@ def analyze_image(image: np.ndarray, thresholds: dict | None = None) -> dict:
         flags.append('shadow_clipping')
     if bright_fraction > p['clipping_fraction']:
         flags.append('highlight_clipping')
-    sharp_score = float(np.clip(np.log1p(sharpness) / np.log1p(500), 0, 1))
+    # Ranking-only sharpness uses smoothing to avoid rewarding high-frequency noise.
+    smoothed = cv2.GaussianBlur(gray, (0, 0), sigmaX=2.0)
+    ranking_sharpness = float(cv2.Laplacian(smoothed, cv2.CV_64F).var())
+    sharp_score = float(np.clip(np.log1p(ranking_sharpness) / np.log1p(500), 0, 1))
+    # Proxy can also respond to real texture: treat this score as heuristic.
+    median_image = cv2.medianBlur(gray, 3)
+    noise_proxy = float(np.median(np.abs(gray.astype(np.float32) - median_image.astype(np.float32))))
     exposure_score = float(np.clip(1 - abs(brightness - 128) / 128, 0, 1))
     contrast_score = float(np.clip(contrast / 65, 0, 1))
     clipping_penalty = float(np.clip((dark_fraction + bright_fraction) * 0.5, 0, 0.4))
+    noise_penalty = noise_proxy / 255.0
     quality_score = float(100 * np.clip(
-        0.4 * sharp_score + 0.35 * exposure_score + 0.25 * contrast_score - clipping_penalty, 0, 1))
+        0.4 * sharp_score + 0.35 * exposure_score + 0.25 * contrast_score
+        - clipping_penalty - noise_penalty, 0, 1))
     return {
         'sharpness': round(sharpness, 3), 'brightness': round(brightness, 3),
         'contrast': round(contrast, 3), 'shadow_fraction': round(dark_fraction, 4),
         'highlight_fraction': round(bright_fraction, 4),
         'quality_score': round(quality_score, 2), 'issues': flags,
+        'ranking_sharpness': round(ranking_sharpness, 3),
+        'noise_proxy': round(noise_proxy, 3),
         'width': int(gray.shape[1]), 'height': int(gray.shape[0]),
     }
 
