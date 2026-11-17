@@ -39,7 +39,11 @@ def analyze_image(image: np.ndarray, thresholds: dict | None = None) -> dict:
         flags.append('possibly_blurry')
     if brightness < p['dark']:
         flags.append('underexposed')
-    if brightness > p['bright'] or bright_fraction > p['clipping_fraction']:
+    # Two-tone images may contain intentional white regions, not exposure errors.
+    midtone_fraction = float(np.mean((gray > 25) & (gray < 230)))
+    two_tone_scene = (dark_fraction > 0.18 and bright_fraction > p['clipping_fraction']
+                      and midtone_fraction < 0.08)
+    if brightness > p['bright'] or (bright_fraction > p['clipping_fraction'] and not two_tone_scene):
         flags.append('overexposed')
     if contrast < p['low_contrast']:
         flags.append('low_contrast')
